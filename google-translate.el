@@ -244,6 +244,12 @@ the list of available languages."
   :type  '(choice (const :tag "No"  nil)
                   (other :tag "Yes" t)))
 
+(defcustom google-translate-show-phonetic nil
+  "If non-NIL, try to show the phonetic spelling."
+  :group 'google-translate
+  :type '(choice (const :tag "No" nil)
+                 (const :tag "Yes" t)))
+
 (defun google-translate-completing-read (prompt choices &optional def)
   "Read a string in the minibuffer with completion.
 
@@ -361,6 +367,10 @@ message is printed."
             ;; translation of a whole phrase, then show the most probable
             ;; translation.
             (let ((beg (point)))
+              (when google-translate-show-phonetic
+                (insert (format "\n%s\n"
+                                (mapconcat #'(lambda (item) (aref item 3))
+                                           (aref json 0) ""))))
               (insert (format "\n%s\n"
                               (mapconcat #'(lambda (item) (aref item 0))
                                          (aref json 0) "")))
