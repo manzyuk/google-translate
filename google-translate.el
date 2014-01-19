@@ -3,7 +3,7 @@
 ;; Copyright (C) 2012 Oleksandr Manzyuk <manzyuk@gmail.com>
 
 ;; Author: Oleksandr Manzyuk <manzyuk@gmail.com>
-;; Version: 0.4
+;; Version: 05
 ;; Keywords: convenience
 
 ;; Contributors:
@@ -142,11 +142,12 @@
 
 ;;; Code:
 
-(require 'ido)
-(require 'url)
-(require 'json)
-
 (eval-when-compile (require 'cl))
+
+(require 'ert)
+(require 'ido)
+(require 'json)
+(require 'url)
 
 (defvar google-translate-supported-languages-alist
   '(("Afrikaans"           . "af")
@@ -218,12 +219,6 @@ Each element is a cons-cell of the form (NAME . CODE), where NAME
 is a human-readable language name and CODE is its code used as a
 query parameter in HTTP requests.")
 
-;; `ido-completing-read', unlike `completing-read', expects a list of
-;; strings (`completing-read' is more flexible and accepts an alist).
-(defvar google-translate-supported-languages
-  (mapcar #'car google-translate-supported-languages-alist)
-  "List of the languages supported by Google Translate.")
-
 (defgroup google-translate nil
   "Emacs interface to Google Translate."
   :group 'processes)
@@ -288,6 +283,12 @@ the list of available languages."
   "Face used to display the probable translation."
   :group 'googel-translate)
 
+;; `ido-completing-read', unlike `completing-read', expects a list of
+;; strings (`completing-read' is more flexible and accepts an alist).
+(defun google-translate-supported-languages ()
+  "Return a list of names of languages supported by Google Translate."
+  (mapcar #'car google-translate-supported-languages-alist))
+
 (defun google-translate-completing-read (prompt choices &optional def)
   "Read a string in the minibuffer with completion.
 
@@ -330,20 +331,22 @@ QUERY-PARAMS must be an alist of field-value pairs."
 
 ;; Google Translate responses with an almost valid JSON string
 ;; respresentation except that the nulls appear to be dropped.
-;; In particular, the response may contain the substrings ",,"
-;; and ",]".  `google-translate-insert-nulls' undoes that.
+;; In particular the response may contain the substrings "[,",
+;; ",,", and ",]".  `google-translate-insert-nulls' undoes
+;; that.
 (defun google-translate-insert-nulls (string)
   (with-temp-buffer
     (insert string)
     (goto-char (point-min))
-    (while (re-search-forward "," (point-max) t)
-      (when (or (when (looking-back "\\[," 0)
-                  (backward-char 1)
-                  t)
-                (looking-at ",")
-                (looking-at "]"))
-        (insert "null")))
+    (while (re-search-forward "\\(\\[,\\|,,\\|,\\]\\)" (point-max) t)
+      (backward-char)
+      (insert "null"))
     (buffer-string)))
+
+(ert-deftest test-insert-nulls ()
+  (should (string-equal
+           (google-translate-insert-nulls "[,[,[,,],,],,]")
+           "[null,[null,[null,null,null],null,null],null,null]")))
 
 (defun google-translate-paragraph (text face)
   "Insert TEXT as a filled paragraph into the current buffer and
@@ -368,19 +371,14 @@ message is printed."
       (let* ((json
               (json-read-from-string
                (google-translate-insert-nulls
-                ;; Google Translate won't let us make a request unless we
-                ;; send a "User-Agent" header it recognizes.
-                ;; "Mozilla/5.0" seems to work.
-                (let ((url-request-extra-headers
-                       '(("User-Agent" . "Mozilla/5.0"))))
-                  (google-translate-http-response-body
-                   (google-translate-format-request-url
-                    `(("client" . "t")
-                      ("ie"     . "UTF-8")
-                      ("oe"     . "UTF-8")
-                      ("sl"     . ,source-language)
-                      ("tl"     . ,target-language)
-                      ("text"   . ,text-stripped))))))))
+                (google-translate-http-response-body
+                 (google-translate-format-request-url
+                  `(("client" . "t")
+                    ("ie"     . "UTF-8")
+                    ("oe"     . "UTF-8")
+                    ("sl"     . ,source-language)
+                    ("tl"     . ,target-language)
+                    ("text"   . ,text-stripped)))))))
              (text-phonetic
               (mapconcat #'(lambda (item) (aref item 3))
                          (aref json 0) ""))
@@ -441,7 +439,7 @@ The null input is equivalent to \"Detect language\"."
     (google-translate-language-abbreviation
      (google-translate-completing-read
       prompt
-      google-translate-supported-languages
+      (google-translate-supported-languages)
       "Detect language"))))
 
 (defun google-translate-read-target-language (prompt)
@@ -452,7 +450,7 @@ The input is guaranteed to be non-null."
     (cl-flet ((read-language ()
                (google-translate-completing-read
                 prompt
-                google-translate-supported-languages)))
+                (google-translate-supported-languages))))
       (let ((target-language (read-language)))
         (while (string-equal target-language "")
           (setq target-language (read-language)))
