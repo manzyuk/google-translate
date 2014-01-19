@@ -570,7 +570,7 @@ in the reverse direction."
 (defun google-translate-at-point (&optional override-p)
   "Translate the word at point or the words in the active region.
 
-For the meaning of OVERRIDE-P, see `google-translate-query-translate'."
+For the meaning of OVERRIDE-P, see `google-translate-read-args'."
   (interactive "P")
   (%google-translate-at-point override-p nil))
 
