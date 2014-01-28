@@ -1,3 +1,5 @@
+*NOTE*: Maintenance of `google-translate` has been taken over by Andrey Tykhonov.  Its new location is https://github.com/atykhonov/google-translate.
+
 # Emacs interface to Google Translate
 
 ## Summary
